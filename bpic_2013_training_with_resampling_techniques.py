@@ -3,10 +3,14 @@ import numpy as np
 import pandas as pd
 from collections import Counter
 #Pandas was used to import csv file. Encoding parameter is set to "cp437" since the data contains English text
-data = pd.read_csv('C:/Users/UNIST/Desktop/Lab/Research/[JC] Comparison of imbalanced techniques and ML techniques/Result_BPIC_2013_closed_dataset/window_3_closed_problems_preprocessed.csv', encoding='cp437')
+data_sample_percentage = "" #Delete after experiments. If data is not to be reduced, type in "" here. If to be reduced, type in, for example, "_20percent"
+data_dir = "/home/jongchan/BPIC2013_closed/window_3_closed_problems_preprocessed" + data_sample_percentage + ".csv"
+data = pd.read_csv(data_dir, encoding='cp437')
 #data = data.sample(frac=1).reset_index(drop=True) #I use this for ADASYN since ADASYN returns error on specific fold
 X = data[['ACT_COMB_1', 'ACT_COMB_2', 'ACT_COMB_3','duration_in_days']]
 y = data[['ACT_COMB_4']]
+
+penalty = 1
 
 #################################################
 ########## Choose resampling technique ##########
@@ -37,13 +41,27 @@ X_dummy = pd.get_dummies(X_dummy, prefix="ACT_COMB_2", columns=['ACT_COMB_2'])
 X_dummy = pd.get_dummies(X_dummy, prefix="ACT_COMB_3", columns=['ACT_COMB_3'])
 X_dummy.iloc[:, 0] = (X_dummy.iloc[:, 0] - X_dummy.iloc[:, 0].mean()) / X_dummy.iloc[:, 0].std()
 
+# X and y here will be used for hyperparameter tuning using random search
+X_randomsearch = X.replace(regex=True, to_replace="Accepted/Assigned", value=1)
+X_randomsearch = X_randomsearch.replace(regex=True, to_replace="Accepted/In Progress", value=2)
+X_randomsearch = X_randomsearch.replace(regex=True, to_replace="Accepted/Wait", value=3)
+X_randomsearch = X_randomsearch.replace(regex=True, to_replace="Completed/Closed", value=4)
+X_randomsearch = X_randomsearch.replace(regex=True, to_replace="Queued/Awaiting Assignment", value=5)
+X_randomsearch = X_randomsearch.replace(regex=True, to_replace="Completed/Cancelled", value=6)
+X_randomsearch = X_randomsearch.replace(regex=True, to_replace="Unmatched/Unmatched", value=7)
+
+y_randomsearch = y.replace(regex=True, to_replace="Accepted/Assigned", value=1)
+y_randomsearch = y_randomsearch.replace(regex=True, to_replace="Accepted/In Progress", value=2)
+y_randomsearch = y_randomsearch.replace(regex=True, to_replace="Accepted/Wait", value=3)
+y_randomsearch = y_randomsearch.replace(regex=True, to_replace="Completed/Closed", value=4)
+y_randomsearch = y_randomsearch.replace(regex=True, to_replace="Queued/Awaiting Assignment", value=5)
+
 from sklearn.model_selection import KFold
 nsplits = 5 # Set the number of k for cross validation
 kf = KFold(n_splits=nsplits)
 kf.get_n_splits(X_dummy)
 print(kf)
 
-#Lists below are used to store the f1 score and overall accuracy values generated from each fold
 dnn_f1_score_kfoldcv = [None] * (nsplits+2)
 dnn_ovr_accuracy_kfoldcv = [None] * (nsplits+2)
 
@@ -60,9 +78,6 @@ svm_f1_score_kfoldcv = [None] * (nsplits+2)
 svm_ovr_accuracy_kfoldcv = [None] * (nsplits+2)
 
 repeat = 0
-
-
-#Training & Testing
 for train_index, test_index in kf.split(X_dummy):
     print("TRAIN:", train_index, "TEST:", test_index)
     X_train, X_test = X_dummy.iloc[train_index], X_dummy.iloc[test_index]
@@ -70,7 +85,6 @@ for train_index, test_index in kf.split(X_dummy):
     train = pd.concat([X_train, y_train], axis=1)
     ACT_COMB_4_index = np.unique(data['ACT_COMB_1']).size + np.unique(data['ACT_COMB_2']).size + np.unique(data['ACT_COMB_3']).size + 1
 
-    #Below codes are used to select features that we are going to use in the training procedure
     AA = train[train.ACT_COMB_4 == "Accepted/Assigned"]
     AA_rest = train[train.ACT_COMB_4 != "Accepted/Assigned"]
     AA_rest = AA_rest.copy()
@@ -146,7 +160,6 @@ for train_index, test_index in kf.split(X_dummy):
     QA_y_res = QA_ova_y_train
     Counter(QA_ova_y_train)
 
-    #Below codes are used to resample data
     if imb_technique == "ADASYN":
         from imblearn.over_sampling import ADASYN
 
@@ -334,139 +347,202 @@ for train_index, test_index in kf.split(X_dummy):
         QA_rus = RandomUnderSampler()
         QA_X_res, QA_y_res = QA_rus.fit_resample(QA_ova_X_train, QA_ova_y_train)
 
-    #Below codes are for the implementation of deep neural network training
     from sklearn.neural_network import MLPClassifier
+    from sklearn.model_selection import RandomizedSearchCV
+    import itertools
 
-    dnn_AA = MLPClassifier(hidden_layer_sizes=(53,19,64), max_iter=10000, activation='relu')
-    dnn_AA.fit(AA_X_res, AA_y_res)
-    dnn_AI = MLPClassifier(hidden_layer_sizes=(53,19,64), max_iter=10000, activation='relu')
-    dnn_AI.fit(AI_X_res, AI_y_res)
-    dnn_AW = MLPClassifier(hidden_layer_sizes=(53,19,64), max_iter=10000, activation='relu')
-    dnn_AW.fit(AW_X_res, AW_y_res)
-    dnn_CC = MLPClassifier(hidden_layer_sizes=(53,19,64), max_iter=10000, activation='relu')
-    dnn_CC.fit(CC_X_res, CC_y_res)
-    dnn_QA = MLPClassifier(hidden_layer_sizes=(53,19,64), max_iter=10000, activation='relu')
-    dnn_QA.fit(QA_X_res, QA_y_res)
+    first_digit_parameters = [x for x in itertools.product((5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100), repeat=1)]
+    second_digit_parameters = [x for x in itertools.product((5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100), repeat=2)]
+    all_digit_parameters = first_digit_parameters + second_digit_parameters
+    learning_rate_init_parameters = [0.1, 0.01, 0.001]
+    parameters = {'hidden_layer_sizes': all_digit_parameters,
+                  'learning_rate_init': learning_rate_init_parameters}
+    dnn_AA = MLPClassifier(max_iter=10000, activation='relu')
+    dnn_AA_clf = RandomizedSearchCV(dnn_AA, parameters, n_jobs=-1, cv=5)
+    dnn_AA_clf.fit(AA_X_res, AA_y_res)
+    print(dnn_AA_clf.best_params_)
+    dnn_AI = MLPClassifier(max_iter=10000, activation='relu')
+    dnn_AI_clf = RandomizedSearchCV(dnn_AI, parameters, n_jobs=-1, cv=5)
+    dnn_AI_clf.fit(AI_X_res, AI_y_res)
+    print(dnn_AI_clf.best_params_)
+    dnn_AW = MLPClassifier(max_iter=10000, activation='relu')
+    dnn_AW_clf = RandomizedSearchCV(dnn_AW, parameters, n_jobs=-1, cv=5)
+    dnn_AW_clf.fit(AW_X_res, AW_y_res)
+    print(dnn_AW_clf.best_params_)
+    dnn_CC = MLPClassifier(max_iter=10000, activation='relu')
+    dnn_CC_clf = RandomizedSearchCV(dnn_CC, parameters, n_jobs=-1, cv=5)
+    dnn_CC_clf.fit(CC_X_res, CC_y_res)
+    print(dnn_CC_clf.best_params_)
+    dnn_QA = MLPClassifier(max_iter=10000, activation='relu')
+    dnn_QA_clf = RandomizedSearchCV(dnn_QA, parameters, n_jobs=-1, cv=5)
+    dnn_QA_clf.fit(QA_X_res, QA_y_res)
+    print(dnn_QA_clf.best_params_)
 
-    # Below codes are for the implementation of logistic regression training
     from sklearn.linear_model import LogisticRegression
-
-    lr_AA = LogisticRegression(solver='newton-cg')
-    lr_AA.fit(AA_X_res, AA_y_res)
-    lr_AI = LogisticRegression(solver='newton-cg')
-    lr_AI.fit(AI_X_res, AI_y_res)
-    lr_AW = LogisticRegression(solver='newton-cg')
-    lr_AW.fit(AW_X_res, AW_y_res)
-    lr_CC = LogisticRegression(solver='newton-cg')
-    lr_CC.fit(CC_X_res, CC_y_res)
-    lr_QA = LogisticRegression(solver='newton-cg')
-    lr_QA.fit(QA_X_res, QA_y_res)
+    solver = ['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga']
+    tol = [1e-2, 1e-3, 1e-4, 1e-5]
+    reg_strength = [0.5, 1.0, 1.5]
+    parameters = {'solver': solver,
+	          'tol': tol,
+	          'C': reg_strength}
+    lr_AA = LogisticRegression()
+    lr_AA_clf = RandomizedSearchCV(lr_AA, parameters, n_jobs = -1, cv = 5)
+    lr_AA_clf.fit(AA_X_res, AA_y_res)
+    print(lr_AA_clf.best_params_)
+    lr_AI = LogisticRegression()
+    lr_AI_clf = RandomizedSearchCV(lr_AI, parameters, n_jobs = -1, cv = 5)
+    lr_AI_clf.fit(AI_X_res, AI_y_res)
+    print(lr_AI_clf.best_params_)
+    lr_AW = LogisticRegression()
+    lr_AW_clf = RandomizedSearchCV(lr_AW, parameters, n_jobs = -1, cv = 5)
+    lr_AW_clf.fit(AW_X_res, AW_y_res)
+    print(lr_AW_clf.best_params_)
+    lr_CC = LogisticRegression()
+    lr_CC_clf = RandomizedSearchCV(lr_CC, parameters, n_jobs = -1, cv = 5)
+    lr_CC_clf.fit(CC_X_res, CC_y_res)
+    print(lr_CC_clf.best_params_)
+    lr_QA = LogisticRegression()
+    lr_QA_clf = RandomizedSearchCV(lr_QA, parameters, n_jobs = -1, cv = 5)
+    lr_QA_clf.fit(QA_X_res, QA_y_res)
+    print(lr_QA_clf.best_params_)
 
     # Below codes are for the implementation of Gaussian Naive Bayes training
     from sklearn.naive_bayes import GaussianNB
-    nb_AA = GaussianNB()
-    nb_AA.fit(AA_X_res, AA_y_res)
-    nb_AI = GaussianNB()
-    nb_AI.fit(AI_X_res, AI_y_res)
-    nb_AW = GaussianNB()
-    nb_AW.fit(AW_X_res, AW_y_res)
-    nb_CC = GaussianNB()
-    nb_CC.fit(CC_X_res, CC_y_res)
-    nb_QA = GaussianNB()
-    nb_QA.fit(QA_X_res, QA_y_res)
+    #In Gaussian NB, 'var_smoothing' parameter optimization makes convergence errors
+    nb_AA_clf = GaussianNB()
+    nb_AA_clf.fit(AA_X_res, AA_y_res)
+    nb_AI_clf = GaussianNB()
+    nb_AI_clf.fit(AI_X_res, AI_y_res)
+    nb_AW_clf = GaussianNB()
+    nb_AW_clf.fit(AW_X_res, AW_y_res)
+    nb_CC_clf = GaussianNB()
+    nb_CC_clf.fit(CC_X_res, CC_y_res)
+    nb_QA_clf = GaussianNB()
+    nb_QA_clf.fit(QA_X_res, QA_y_res)
 
     # Below codes are for the implementation of random forest training
     from sklearn.ensemble import RandomForestClassifier
-
-    rf_AA = RandomForestClassifier(n_estimators=163)
-    rf_AA.fit(AA_X_res, AA_y_res)
-    rf_AI = RandomForestClassifier(n_estimators=163)
-    rf_AI.fit(AI_X_res, AI_y_res)
-    rf_AW = RandomForestClassifier(n_estimators=163)
-    rf_AW.fit(AW_X_res, AW_y_res)
-    rf_CC = RandomForestClassifier(n_estimators=163)
-    rf_CC.fit(CC_X_res, CC_y_res)
-    rf_QA = RandomForestClassifier(n_estimators=163)
-    rf_QA.fit(QA_X_res, QA_y_res)
+    n_tree = [50, 100, 200, 300, 400, 500, 600, 700]
+    max_depth = [10, 20, 30, 40, 50, 60, 70]
+    min_samples_split = [5, 10, 15, 20, 25, 30]
+    parameters = {'n_estimators': n_tree,
+		  'max_depth': max_depth,
+		  'min_samples_split': min_samples_split}
+    rf_AA = RandomForestClassifier()
+    rf_AA_clf = RandomizedSearchCV(rf_AA, parameters, n_jobs = -1, cv=5)
+    rf_AA_clf.fit(AA_X_res, AA_y_res)
+    print(rf_AA_clf.best_params_)
+    rf_AI = RandomForestClassifier()
+    rf_AI_clf = RandomizedSearchCV(rf_AI, parameters, n_jobs = -1, cv=5)
+    rf_AI_clf.fit(AI_X_res, AI_y_res)
+    print(rf_AI_clf.best_params_)
+    rf_AW = RandomForestClassifier()
+    rf_AW_clf = RandomizedSearchCV(rf_AW, parameters, n_jobs = -1, cv=5)
+    rf_AW_clf.fit(AW_X_res, AW_y_res)
+    print(rf_AW_clf.best_params_)
+    rf_CC = RandomForestClassifier()
+    rf_CC_clf = RandomizedSearchCV(rf_CC, parameters, n_jobs = -1, cv=5)
+    rf_CC_clf.fit(CC_X_res, CC_y_res)
+    print(rf_CC_clf.best_params_)
+    rf_QA = RandomForestClassifier()
+    rf_QA_clf = RandomizedSearchCV(rf_QA, parameters, n_jobs = -1, cv=5)
+    rf_QA_clf.fit(QA_X_res, QA_y_res)
+    print(rf_QA_clf.best_params_)
 
     # Below codes are for the implementation of support vector machine training
     from sklearn.svm import SVC
+    reg_param = [0.5, 1.0, 1.5]
+    degree = [1, 2, 3, 4, 5]
+    kernel = ['rbf', 'linear', 'poly', 'sigmoid']
+    gamma = ['scale', 'auto']
+    tol = [1e-2, 1e-3, 1e-4]
+    parameters = {'C': reg_param,
+		  'degree': degree,
+		  'kernel': kernel,
+		  'gamma': gamma,
+		  'tol': tol}
+    svm_AA = SVC(probability = True)
+    svm_AA_clf = RandomizedSearchCV(svm_AA, parameters, n_jobs = -1, cv=5)
+    svm_AA_clf.fit(AA_X_res, AA_y_res)
+    print(svm_AA_clf.best_params_)
+    svm_AI = SVC(probability = True)
+    svm_AI_clf = RandomizedSearchCV(svm_AI, parameters, n_jobs = -1, cv=5)
+    svm_AI_clf.fit(AI_X_res, AI_y_res)
+    print(svm_AI_clf.best_params_)
+    svm_AW = SVC(probability = True)
+    svm_AW_clf = RandomizedSearchCV(svm_AW, parameters, n_jobs = -1, cv=5)
+    svm_AW_clf.fit(AW_X_res, AW_y_res)
+    print(svm_AW_clf.best_params_)
+    svm_CC = SVC(probability = True)
+    svm_CC_clf = RandomizedSearchCV(svm_CC, parameters, n_jobs = -1, cv=5)
+    svm_CC_clf.fit(CC_X_res, CC_y_res)
+    print(svm_CC_clf.best_params_)
+    svm_QA = SVC(probability = True)
+    svm_QA_clf = RandomizedSearchCV(svm_QA, parameters, n_jobs = -1, cv=5)
+    svm_QA_clf.fit(QA_X_res, QA_y_res)
+    print(svm_QA_clf.best_params_)
 
-    svm_AA = SVC(gamma='auto', probability=True)
-    svm_AA.fit(AA_X_res, AA_y_res)
-    svm_AI = SVC(gamma='auto', probability=True)
-    svm_AI.fit(AI_X_res, AI_y_res)
-    svm_AW = SVC(gamma='auto', probability=True)
-    svm_AW.fit(AW_X_res, AW_y_res)
-    svm_CC = SVC(gamma='auto', probability=True)
-    svm_CC.fit(CC_X_res, CC_y_res)
-    svm_QA = SVC(gamma='auto', probability=True)
-    svm_QA.fit(QA_X_res, QA_y_res)
+    dnn_pred_class_AA = dnn_AA_clf.predict(X_test)
+    dnn_pred_prob_AA = dnn_AA_clf.predict_proba(X_test)
+    dnn_pred_class_AI = dnn_AI_clf.predict(X_test)
+    dnn_pred_prob_AI = dnn_AI_clf.predict_proba(X_test)
+    dnn_pred_class_AW = dnn_AW_clf.predict(X_test)
+    dnn_pred_prob_AW = dnn_AW_clf.predict_proba(X_test)
+    dnn_pred_class_CC = dnn_CC_clf.predict(X_test)
+    dnn_pred_prob_CC = dnn_CC_clf.predict_proba(X_test)
+    dnn_pred_class_QA = dnn_QA_clf.predict(X_test)
+    dnn_pred_prob_QA = dnn_QA_clf.predict_proba(X_test)
 
-    dnn_pred_class_AA = dnn_AA.predict(X_test)
-    dnn_pred_prob_AA = dnn_AA.predict_proba(X_test)
-    dnn_pred_class_AI = dnn_AI.predict(X_test)
-    dnn_pred_prob_AI = dnn_AI.predict_proba(X_test)
-    dnn_pred_class_AW = dnn_AW.predict(X_test)
-    dnn_pred_prob_AW = dnn_AW.predict_proba(X_test)
-    dnn_pred_class_CC = dnn_CC.predict(X_test)
-    dnn_pred_prob_CC = dnn_CC.predict_proba(X_test)
-    dnn_pred_class_QA = dnn_QA.predict(X_test)
-    dnn_pred_prob_QA = dnn_QA.predict_proba(X_test)
+    lr_pred_class_AA = lr_AA_clf.predict(X_test)
+    lr_pred_prob_AA = lr_AA_clf.predict_proba(X_test)
+    lr_pred_class_AI = lr_AI_clf.predict(X_test)
+    lr_pred_prob_AI = lr_AI_clf.predict_proba(X_test)
+    lr_pred_class_AW = lr_AW_clf.predict(X_test)
+    lr_pred_prob_AW = lr_AW_clf.predict_proba(X_test)
+    lr_pred_class_CC = lr_CC_clf.predict(X_test)
+    lr_pred_prob_CC = lr_CC_clf.predict_proba(X_test)
+    lr_pred_class_QA = lr_QA_clf.predict(X_test)
+    lr_pred_prob_QA = lr_QA_clf.predict_proba(X_test)
 
-    lr_pred_class_AA = lr_AA.predict(X_test)
-    lr_pred_prob_AA = lr_AA.predict_proba(X_test)
-    lr_pred_class_AI = lr_AI.predict(X_test)
-    lr_pred_prob_AI = lr_AI.predict_proba(X_test)
-    lr_pred_class_AW = lr_AW.predict(X_test)
-    lr_pred_prob_AW = lr_AW.predict_proba(X_test)
-    lr_pred_class_CC = lr_CC.predict(X_test)
-    lr_pred_prob_CC = lr_CC.predict_proba(X_test)
-    lr_pred_class_QA = lr_QA.predict(X_test)
-    lr_pred_prob_QA = lr_QA.predict_proba(X_test)
+    nb_pred_class_AA = nb_AA_clf.predict(X_test)
+    nb_pred_prob_AA = nb_AA_clf.predict_proba(X_test)
+    nb_pred_class_AI = nb_AI_clf.predict(X_test)
+    nb_pred_prob_AI = nb_AI_clf.predict_proba(X_test)
+    nb_pred_class_AW = nb_AW_clf.predict(X_test)
+    nb_pred_prob_AW = nb_AW_clf.predict_proba(X_test)
+    nb_pred_class_CC = nb_CC_clf.predict(X_test)
+    nb_pred_prob_CC = nb_CC_clf.predict_proba(X_test)
+    nb_pred_class_QA = nb_QA_clf.predict(X_test)
+    nb_pred_prob_QA = nb_QA_clf.predict_proba(X_test)
 
-    nb_pred_class_AA = nb_AA.predict(X_test)
-    nb_pred_prob_AA = nb_AA.predict_proba(X_test)
-    nb_pred_class_AI = nb_AI.predict(X_test)
-    nb_pred_prob_AI = nb_AI.predict_proba(X_test)
-    nb_pred_class_AW = nb_AW.predict(X_test)
-    nb_pred_prob_AW = nb_AW.predict_proba(X_test)
-    nb_pred_class_CC = nb_CC.predict(X_test)
-    nb_pred_prob_CC = nb_CC.predict_proba(X_test)
-    nb_pred_class_QA = nb_QA.predict(X_test)
-    nb_pred_prob_QA = nb_QA.predict_proba(X_test)
+    rf_pred_class_AA = rf_AA_clf.predict(X_test)
+    rf_pred_prob_AA = rf_AA_clf.predict_proba(X_test)
+    rf_pred_class_AI = rf_AI_clf.predict(X_test)
+    rf_pred_prob_AI = rf_AI_clf.predict_proba(X_test)
+    rf_pred_class_AW = rf_AW_clf.predict(X_test)
+    rf_pred_prob_AW = rf_AW_clf.predict_proba(X_test)
+    rf_pred_class_CC = rf_CC_clf.predict(X_test)
+    rf_pred_prob_CC = rf_CC_clf.predict_proba(X_test)
+    rf_pred_class_QA = rf_QA_clf.predict(X_test)
+    rf_pred_prob_QA = rf_QA_clf.predict_proba(X_test)
 
-    rf_pred_class_AA = rf_AA.predict(X_test)
-    rf_pred_prob_AA = rf_AA.predict_proba(X_test)
-    rf_pred_class_AI = rf_AI.predict(X_test)
-    rf_pred_prob_AI = rf_AI.predict_proba(X_test)
-    rf_pred_class_AW = rf_AW.predict(X_test)
-    rf_pred_prob_AW = rf_AW.predict_proba(X_test)
-    rf_pred_class_CC = rf_CC.predict(X_test)
-    rf_pred_prob_CC = rf_CC.predict_proba(X_test)
-    rf_pred_class_QA = rf_QA.predict(X_test)
-    rf_pred_prob_QA = rf_QA.predict_proba(X_test)
+    svm_pred_class_AA = svm_AA_clf.predict(X_test)
+    svm_pred_prob_AA = svm_AA_clf.predict_proba(X_test)
+    svm_pred_class_AI = svm_AI_clf.predict(X_test)
+    svm_pred_prob_AI = svm_AI_clf.predict_proba(X_test)
+    svm_pred_class_AW = svm_AW_clf.predict(X_test)
+    svm_pred_prob_AW = svm_AW_clf.predict_proba(X_test)
+    svm_pred_class_CC = svm_CC_clf.predict(X_test)
+    svm_pred_prob_CC = svm_CC_clf.predict_proba(X_test)
+    svm_pred_class_QA = svm_QA_clf.predict(X_test)
+    svm_pred_prob_QA = svm_QA_clf.predict_proba(X_test)
 
-    svm_pred_class_AA = svm_AA.predict(X_test)
-    svm_pred_prob_AA = svm_AA.predict_proba(X_test)
-    svm_pred_class_AI = svm_AI.predict(X_test)
-    svm_pred_prob_AI = svm_AI.predict_proba(X_test)
-    svm_pred_class_AW = svm_AW.predict(X_test)
-    svm_pred_prob_AW = svm_AW.predict_proba(X_test)
-    svm_pred_class_CC = svm_CC.predict(X_test)
-    svm_pred_prob_CC = svm_CC.predict_proba(X_test)
-    svm_pred_class_QA = svm_QA.predict(X_test)
-    svm_pred_prob_QA = svm_QA.predict_proba(X_test)
-
-    #Below dataframes are generated to store classification result based on predict probabilities
-    #This procedure is necessary since this analysis uses one-versus-all classification method
     dnn_prediction = pd.DataFrame(columns=['Prediction'])
     lr_prediction = pd.DataFrame(columns=['Prediction'])
     nb_prediction = pd.DataFrame(columns=['Prediction'])
     rf_prediction = pd.DataFrame(columns=['Prediction'])
     svm_prediction = pd.DataFrame(columns=['Prediction'])
 
-    #Below codes are for aggregating test results from one-versus-all deep neural network training
     for i in range(0, len(y_test)):
         dnn_AA_index = 0
         dnn_AI_index = 0
@@ -577,6 +653,7 @@ for train_index, test_index in kf.split(X_dummy):
         else:
             dnn_precision_5 = dnn_tp_5 / (dnn_tp_5 + dnn_fp_5)
         dnn_precision_avg = (dnn_precision_1 + dnn_precision_2 + dnn_precision_3 + dnn_precision_4 + dnn_precision_5) / 5
+        print(dnn_precision_3)
         return dnn_precision_avg
 
 
@@ -611,13 +688,32 @@ for train_index, test_index in kf.split(X_dummy):
             dnn_recall_5 = 0
         else:
             dnn_recall_5 = dnn_tp_5 / (dnn_tp_5 +dnn_fn_5)
-        dnn_recall_avg = (dnn_recall_1 + dnn_recall_2 + dnn_recall_3 +dnn_recall_4 + dnn_recall_5) / 5
+        dnn_recall_avg = (dnn_recall_1 + dnn_recall_2 + (penalty*dnn_recall_3) +dnn_recall_4 + dnn_recall_5) / (5+penalty-1)
+        print(dnn_recall_3)
         return dnn_recall_avg
 
 
     from sklearn.metrics import classification_report, confusion_matrix
 
     dnn_conf_matrix = confusion_matrix(y_test, dnn_prediction)
+
+    ### PENALTY OPERATION ###
+    # Penalty for first class(Prediction of first class is important here)
+    #dnn_conf_matrix[0] = penalty * dnn_conf_matrix[0]
+    #dnn_conf_matrix[0][0] = dnn_conf_matrix[0][0] / penalty
+    # Penalty for second class(Prediction of first class is important here)
+    #dnn_conf_matrix[1] = penalty * dnn_conf_matrix[1]
+    #dnn_conf_matrix[1][1] = dnn_conf_matrix[1][1] / penalty
+    # Penalty for third class(Prediction of first class is important here)
+    #dnn_conf_matrix[2] = penalty * dnn_conf_matrix[2]
+    #dnn_conf_matrix[2][2] = dnn_conf_matrix[2][2] / penalty
+    # Penalty for fourth class(Prediction of first class is important here)
+    #dnn_conf_matrix[3] = penalty * dnn_conf_matrix[3]
+    #dnn_conf_matrix[3][3] = dnn_conf_matrix[3][3] / penalty
+    # Penalty for fifth class(Prediction of first class is important here)
+    #dnn_conf_matrix[4] = penalty * dnn_conf_matrix[4]
+    #dnn_conf_matrix[4][4] = dnn_conf_matrix[4][4] / penalty
+
     print("dnn_confusion matrix:")
     print(dnn_conf_matrix)
     dnn_precision = get_precision(dnn_conf_matrix)
@@ -630,13 +726,11 @@ for train_index, test_index in kf.split(X_dummy):
     print("dnn_overall accuracy is:")
     print(dnn_ovr_accuracy)
     dnn_conf_matrix = pd.DataFrame(dnn_conf_matrix)
-    #dnn_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_dnn_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+1)+'.csv',header=False,index=False) #First repetition
-    dnn_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_dnn_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
+    dnn_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_dnn_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+1)+'.csv',header=False,index=False) #First repetition
+    #dnn_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_dnn_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
     dnn_f1_score_kfoldcv[repeat] = dnn_f1_score
     dnn_ovr_accuracy_kfoldcv[repeat] = dnn_ovr_accuracy
 
-
-    #Below codes are for aggregating test results from one-versus-all logistic regression training
     for i in range(0, len(y_test)):
         lr_AA_index = 0
         lr_AI_index = 0
@@ -782,13 +876,31 @@ for train_index, test_index in kf.split(X_dummy):
             lr_recall_5 = 0
         else:
             lr_recall_5 = lr_tp_5 / (lr_tp_5 + lr_fn_5)
-        lr_recall_avg = (lr_recall_1 + lr_recall_2 + lr_recall_3 + lr_recall_4 + lr_recall_5) / 5
+        lr_recall_avg = (lr_recall_1 + lr_recall_2 + (penalty*lr_recall_3) + lr_recall_4 + lr_recall_5) / (5+penalty-1)
         return lr_recall_avg
 
 
     from sklearn.metrics import classification_report, confusion_matrix
 
     lr_conf_matrix = confusion_matrix(y_test, lr_prediction)
+
+    ### PENALTY OPERATION ###
+    # Penalty for first class(Prediction of first class is important here)
+    #lr_conf_matrix[0] = penalty * lr_conf_matrix[0]
+    #lr_conf_matrix[0][0] = lr_conf_matrix[0][0] / penalty
+    # Penalty for second class(Prediction of first class is important here)
+    #lr_conf_matrix[1] = penalty * lr_conf_matrix[1]
+    #lr_conf_matrix[1][1] = lr_conf_matrix[1][1] / penalty
+    # Penalty for third class(Prediction of first class is important here)
+    #lr_conf_matrix[2] = penalty * lr_conf_matrix[2]
+    #lr_conf_matrix[2][2] = lr_conf_matrix[2][2] / penalty
+    # Penalty for fourth class(Prediction of first class is important here)
+    #lr_conf_matrix[3] = penalty * lr_conf_matrix[3]
+    #lr_conf_matrix[3][3] = lr_conf_matrix[3][3] / penalty
+    # Penalty for fifth class(Prediction of first class is important here)
+    #lr_conf_matrix[4] = penalty * lr_conf_matrix[4]
+    #lr_conf_matrix[4][4] = lr_conf_matrix[4][4] / penalty
+
     print("lr_confusion matrix:")
     print(lr_conf_matrix)
     lr_precision = get_precision(lr_conf_matrix)
@@ -803,12 +915,12 @@ for train_index, test_index in kf.split(X_dummy):
     print("lr_overall accuracy is:")
     print(lr_ovr_accuracy)
     lr_conf_matrix = pd.DataFrame(lr_conf_matrix)
-    #lr_conf_matrix.to_csv('conf_matrix_' + imb_technique + '_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_' + str(repeat + 1) + '.csv',header=False, index=False)  # First repetition
-    lr_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_lr_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
+    lr_conf_matrix.to_csv('conf_matrix_' + imb_technique + '_penalty_' + str(penalty) + '_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_' + str(repeat + 1) + '.csv', header=False, index=False)  # First repetition
+    #lr_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_lr_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
     lr_f1_score_kfoldcv[repeat] = lr_f1_score
     lr_ovr_accuracy_kfoldcv[repeat] = lr_ovr_accuracy
 
-    #Below codes are for aggregating test results from one-versus-all Naive Bayes training
+
     for i in range(0, len(y_test)):
         nb_AA_index = 0
         nb_AI_index = 0
@@ -953,13 +1065,32 @@ for train_index, test_index in kf.split(X_dummy):
             nb_recall_5 = 0
         else:
             nb_recall_5 = nb_tp_5 / (nb_tp_5 +nb_fn_5)
-        nb_recall_avg = (nb_recall_1 + nb_recall_2 + nb_recall_3 +nb_recall_4 + nb_recall_5) / 5
+        nb_recall_avg = (nb_recall_1 + nb_recall_2 + (penalty*nb_recall_3) +nb_recall_4 + nb_recall_5) / (5+penalty-1)
         return nb_recall_avg
 
 
     from sklearn.metrics import classification_report, confusion_matrix
 
     nb_conf_matrix = confusion_matrix(y_test, nb_prediction)
+
+
+    ### PENALTY OPERATION ###
+    # Penalty for first class(Prediction of FIRST class is important here)
+    #nb_conf_matrix[0] = penalty * nb_conf_matrix[0] #Since prediction of first class is important, extra weight(penalty) is multiplied to the task of the prediction of first class
+    #nb_conf_matrix[0][0] = nb_conf_matrix[0][0] / penalty #Since making a correct prediction of first class does not incur any penalties, extra weight(penalty) multiplied in the above line is cancelled. This again means that the penalty scheme is focusing on the huge cost incurred by making a wrong prediction, but not focusing on correct prediction
+    # Penalty for second class(Prediction of SECOND class is important here)
+    #nb_conf_matrix[1] = penalty * nb_conf_matrix[1]
+    #nb_conf_matrix[1][1] = nb_conf_matrix[1][1] / penalty
+    # Penalty for third class(Prediction of THIRD class is important here)
+    #nb_conf_matrix[2] = penalty * nb_conf_matrix[2]
+    #nb_conf_matrix[2][2] = nb_conf_matrix[2][2] / penalty
+    # Penalty for fourth class(Prediction of FOURTH class is important here)
+    #nb_conf_matrix[3] = penalty * nb_conf_matrix[3]
+    #nb_conf_matrix[3][3] = nb_conf_matrix[3][3] / penalty
+    # Penalty for fifth class(Prediction of FIFTH class is important here)
+    #nb_conf_matrix[4] = penalty * nb_conf_matrix[4]
+    #nb_conf_matrix[4][4] = nb_conf_matrix[4][4] / penalty
+
     print("nb_confusion matrix:")
     print(nb_conf_matrix)
     nb_precision = get_precision(nb_conf_matrix)
@@ -972,12 +1103,12 @@ for train_index, test_index in kf.split(X_dummy):
     print("nb_overall accuracy is:")
     print(nb_ovr_accuracy)
     nb_conf_matrix = pd.DataFrame(nb_conf_matrix)
-    #nb_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_nb_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+1)+'.csv',header=False,index=False) #First repetition
-    nb_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_nb_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
+    nb_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_nb_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+1)+'.csv',header=False,index=False) #First repetition
+    #nb_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_nb_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
     nb_f1_score_kfoldcv[repeat] = nb_f1_score
     nb_ovr_accuracy_kfoldcv[repeat] = nb_ovr_accuracy
 
-    #Below codes are for aggregating test results from one-versus-all random forest training
+
     for i in range(0, len(y_test)):
         rf_AA_index = 0
         rf_AI_index = 0
@@ -1122,13 +1253,32 @@ for train_index, test_index in kf.split(X_dummy):
             rf_recall_5 = 0
         else:
             rf_recall_5 = rf_tp_5 / (rf_tp_5 +rf_fn_5)
-        rf_recall_avg = (rf_recall_1 + rf_recall_2 + rf_recall_3 +rf_recall_4 + rf_recall_5) / 5
+        rf_recall_avg = (rf_recall_1 + rf_recall_2 + (penalty*rf_recall_3) +rf_recall_4 + rf_recall_5) / (5+penalty-1)
         return rf_recall_avg
 
 
     from sklearn.metrics import classification_report, confusion_matrix
 
     rf_conf_matrix = confusion_matrix(y_test, rf_prediction)
+
+
+    ### PENALTY OPERATION ###
+    # Penalty for first class(Prediction of first class is important here)
+    #rf_conf_matrix[0] = penalty * rf_conf_matrix[0]
+    #rf_conf_matrix[0][0] = rf_conf_matrix[0][0] / penalty
+    # Penalty for second class(Prediction of first class is important here)
+    #rf_conf_matrix[1] = penalty * rf_conf_matrix[1]
+    #rf_conf_matrix[1][1] = rf_conf_matrix[1][1] / penalty
+    # Penalty for third class(Prediction of first class is important here)
+    #rf_conf_matrix[2] = penalty * rf_conf_matrix[2]
+    #rf_conf_matrix[2][2] = rf_conf_matrix[2][2] / penalty
+    # Penalty for fourth class(Prediction of first class is important here)
+    #rf_conf_matrix[3] = penalty * rf_conf_matrix[3]
+    #rf_conf_matrix[3][3] = rf_conf_matrix[3][3] / penalty
+    # Penalty for fifth class(Prediction of first class is important here)
+    #rf_conf_matrix[4] = penalty * rf_conf_matrix[4]
+    #rf_conf_matrix[4][4] = rf_conf_matrix[4][4] / penalty
+
     print("rf_confusion matrix:")
     print(rf_conf_matrix)
     rf_precision = get_precision(rf_conf_matrix)
@@ -1141,12 +1291,12 @@ for train_index, test_index in kf.split(X_dummy):
     print("rf_overall accuracy is:")
     print(rf_ovr_accuracy)
     rf_conf_matrix = pd.DataFrame(rf_conf_matrix)
-    #rf_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_rf_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+1)+'.csv',header=False,index=False) #First repetition
-    rf_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_rf_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
+    rf_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_rf_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+1)+'.csv',header=False,index=False) #First repetition
+    #rf_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_rf_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
     rf_f1_score_kfoldcv[repeat] = rf_f1_score
     rf_ovr_accuracy_kfoldcv[repeat] = rf_ovr_accuracy
 
-    #Below codes are for aggregating test results from one-versus-all support vector machine training
+
     for i in range(0, len(y_test)):
         svm_AA_index = 0
         svm_AI_index = 0
@@ -1291,13 +1441,32 @@ for train_index, test_index in kf.split(X_dummy):
             svm_recall_5 = 0
         else:
             svm_recall_5 = svm_tp_5 / (svm_tp_5 +svm_fn_5)
-        svm_recall_avg = (svm_recall_1 + svm_recall_2 + svm_recall_3 +svm_recall_4 + svm_recall_5) / 5
+        svm_recall_avg = (svm_recall_1 + svm_recall_2 + (penalty*svm_recall_3) +svm_recall_4 + svm_recall_5) / (5+penalty-1)
         return svm_recall_avg
 
 
     from sklearn.metrics import classification_report, confusion_matrix
 
     svm_conf_matrix = confusion_matrix(y_test, svm_prediction)
+
+
+    ### PENALTY OPERATION ###
+    # Penalty for first class(Prediction of first class is important here)
+    #svm_conf_matrix[0] = penalty * svm_conf_matrix[0]
+    #svm_conf_matrix[0][0] = svm_conf_matrix[0][0] / penalty
+    # Penalty for second class(Prediction of first class is important here)
+    #svm_conf_matrix[1] = penalty * svm_conf_matrix[1]
+    #svm_conf_matrix[1][1] = svm_conf_matrix[1][1] / penalty
+    # Penalty for third class(Prediction of first class is important here)
+    #svm_conf_matrix[2] = penalty * svm_conf_matrix[2]
+    #svm_conf_matrix[2][2] = svm_conf_matrix[2][2] / penalty
+    # Penalty for fourth class(Prediction of first class is important here)
+    #svm_conf_matrix[3] = penalty * svm_conf_matrix[3]
+    #svm_conf_matrix[3][3] = svm_conf_matrix[3][3] / penalty
+    # Penalty for fifth class(Prediction of first class is important here)
+    #svm_conf_matrix[4] = penalty * svm_conf_matrix[4]
+    #svm_conf_matrix[4][4] = svm_conf_matrix[4][4] / penalty
+
     print("svm_confusion matrix:")
     print(svm_conf_matrix)
     svm_precision = get_precision(svm_conf_matrix)
@@ -1310,62 +1479,62 @@ for train_index, test_index in kf.split(X_dummy):
     print("svm_overall accuracy is:")
     print(svm_ovr_accuracy)
     svm_conf_matrix = pd.DataFrame(svm_conf_matrix)
-    #svm_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_svm_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+1)+'.csv',header=False,index=False) #First repetition
-    svm_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_svm_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
+    svm_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_svm_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+1)+'.csv',header=False,index=False) #First repetition
+    #svm_conf_matrix.to_csv('conf_matrix_'+imb_technique+'_penalty_' + str(penalty) + '_svm_bpic2013_closed_'+ str(nsplits) +'foldcv_' + str(repeat+6)+'.csv',header=False,index=False) #Second repetition
     svm_f1_score_kfoldcv[repeat] = svm_f1_score
     svm_ovr_accuracy_kfoldcv[repeat] = svm_ovr_accuracy
     repeat = repeat + 1
 dnn_f1_score_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 dnn_f1_score_kfoldcv[6] = (dnn_f1_score_kfoldcv[0]+dnn_f1_score_kfoldcv[1]+dnn_f1_score_kfoldcv[2]+dnn_f1_score_kfoldcv[3]+dnn_f1_score_kfoldcv[4])/5
 dnn_f1_score_kfoldcv = pd.DataFrame(dnn_f1_score_kfoldcv)
-#dnn_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_dnn_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-dnn_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_dnn_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+dnn_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_dnn_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#dnn_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_dnn_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 dnn_ovr_accuracy_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 dnn_ovr_accuracy_kfoldcv[6] = (dnn_ovr_accuracy_kfoldcv[0]+dnn_ovr_accuracy_kfoldcv[1]+dnn_ovr_accuracy_kfoldcv[2]+dnn_ovr_accuracy_kfoldcv[3]+dnn_ovr_accuracy_kfoldcv[4])/5
 dnn_ovr_accuracy_kfoldcv = pd.DataFrame(dnn_ovr_accuracy_kfoldcv)
-#dnn_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_dnn_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-dnn_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_dnn_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+dnn_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_dnn_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#dnn_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_dnn_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 
 lr_f1_score_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 lr_f1_score_kfoldcv[6] = (lr_f1_score_kfoldcv[0]+lr_f1_score_kfoldcv[1]+lr_f1_score_kfoldcv[2]+lr_f1_score_kfoldcv[3]+lr_f1_score_kfoldcv[4])/5
 lr_f1_score_kfoldcv = pd.DataFrame(lr_f1_score_kfoldcv)
-#lr_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-lr_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+lr_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#lr_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 lr_ovr_accuracy_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 lr_ovr_accuracy_kfoldcv[6] = (lr_ovr_accuracy_kfoldcv[0]+lr_ovr_accuracy_kfoldcv[1]+lr_ovr_accuracy_kfoldcv[2]+lr_ovr_accuracy_kfoldcv[3]+lr_ovr_accuracy_kfoldcv[4])/5
 lr_ovr_accuracy_kfoldcv = pd.DataFrame(lr_ovr_accuracy_kfoldcv)
-#lr_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-lr_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+lr_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#lr_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_lr_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 
 nb_f1_score_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 nb_f1_score_kfoldcv[6] = (nb_f1_score_kfoldcv[0]+nb_f1_score_kfoldcv[1]+nb_f1_score_kfoldcv[2]+nb_f1_score_kfoldcv[3]+nb_f1_score_kfoldcv[4])/5
 nb_f1_score_kfoldcv = pd.DataFrame(nb_f1_score_kfoldcv)
-#nb_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_nb_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-nb_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_nb_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+nb_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_nb_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#nb_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_nb_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 nb_ovr_accuracy_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 nb_ovr_accuracy_kfoldcv[6] = (nb_ovr_accuracy_kfoldcv[0]+nb_ovr_accuracy_kfoldcv[1]+nb_ovr_accuracy_kfoldcv[2]+nb_ovr_accuracy_kfoldcv[3]+nb_ovr_accuracy_kfoldcv[4])/5
 nb_ovr_accuracy_kfoldcv = pd.DataFrame(nb_ovr_accuracy_kfoldcv)
-#nb_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_nb_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-nb_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_nb_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+nb_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_nb_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#nb_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_nb_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 
 rf_f1_score_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 rf_f1_score_kfoldcv[6] = (rf_f1_score_kfoldcv[0]+rf_f1_score_kfoldcv[1]+rf_f1_score_kfoldcv[2]+rf_f1_score_kfoldcv[3]+rf_f1_score_kfoldcv[4])/5
 rf_f1_score_kfoldcv = pd.DataFrame(rf_f1_score_kfoldcv)
-#rf_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_rf_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-rf_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_rf_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+rf_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_rf_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#rf_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_rf_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 rf_ovr_accuracy_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 rf_ovr_accuracy_kfoldcv[6] = (rf_ovr_accuracy_kfoldcv[0]+rf_ovr_accuracy_kfoldcv[1]+rf_ovr_accuracy_kfoldcv[2]+rf_ovr_accuracy_kfoldcv[3]+rf_ovr_accuracy_kfoldcv[4])/5
 rf_ovr_accuracy_kfoldcv = pd.DataFrame(rf_ovr_accuracy_kfoldcv)
-#rf_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_rf_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-rf_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_rf_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+rf_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_rf_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#rf_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_rf_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 
 svm_f1_score_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 svm_f1_score_kfoldcv[6] = (svm_f1_score_kfoldcv[0]+svm_f1_score_kfoldcv[1]+svm_f1_score_kfoldcv[2]+svm_f1_score_kfoldcv[3]+svm_f1_score_kfoldcv[4])/5
 svm_f1_score_kfoldcv = pd.DataFrame(svm_f1_score_kfoldcv)
-#svm_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_svm_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-svm_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_svm_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+svm_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_svm_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#svm_f1_score_kfoldcv.to_csv('f1_score_'+imb_technique+'_penalty_' + str(penalty) + '_svm_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
 svm_ovr_accuracy_kfoldcv[5] = "Average" #To let users figure out that f1_score_kfoldcv[6] value is the average when seeing the csv file
 svm_ovr_accuracy_kfoldcv[6] = (svm_ovr_accuracy_kfoldcv[0]+svm_ovr_accuracy_kfoldcv[1]+svm_ovr_accuracy_kfoldcv[2]+svm_ovr_accuracy_kfoldcv[3]+svm_ovr_accuracy_kfoldcv[4])/5
 svm_ovr_accuracy_kfoldcv = pd.DataFrame(svm_ovr_accuracy_kfoldcv)
-#svm_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_svm_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
-svm_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_svm_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
+svm_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_svm_bpic2013_closed_' + str(nsplits) + 'foldcv_1~5.csv',header=False,index=False) #First repetition
+#svm_ovr_accuracy_kfoldcv.to_csv('ovr_accuracy_'+imb_technique+'_penalty_' + str(penalty) + '_svm_bpic2013_closed_' + str(nsplits) + 'foldcv_6~10.csv',header=False,index=False) #Second repetition
