@@ -25,9 +25,6 @@ data = pd.read_csv(data_dir, encoding='cp437')
 X = data[['ACT_COMB_1', 'ACT_COMB_2', 'ACT_COMB_3','duration_in_days']]
 y = data[['ACT_COMB_4']]
 
-#################################################
-########## Choose resampling technique ##########
-#################################################
 imb_technique = argv[1] # Baseline / ADASYN / ALLKNN / CNN / ENN / IHT / NCR / NM / OSS / RENN / ROS / RUS / SMOTE / BSMOTE / SMOTEENN / SMOTETOMEK / TOMEK
 
 # Dummification
@@ -564,111 +561,108 @@ for train_index, test_index in kf.split(X_dummy):
                                                       dnn_pred_prob_QA[i][dnn_QA_index]):
             dnn_prediction.loc[i] = "Queued/Awaiting Assignment"
 
+    def get_precision(conf_matrix):
+        tp_1 = conf_matrix[0][0]
+        tp_2 = conf_matrix[1][1]
+        tp_3 = conf_matrix[2][2]
+        tp_4 = conf_matrix[3][3]
+        tp_5 = conf_matrix[4][4]
+        fp_1 = conf_matrix[1][0] + conf_matrix[2][0] + conf_matrix[3][0] + conf_matrix[4][0]
+        fp_2 = conf_matrix[0][1] + conf_matrix[2][1] + conf_matrix[3][1] + conf_matrix[4][1]
+        fp_3 = conf_matrix[0][2] + conf_matrix[1][2] + conf_matrix[3][2] + conf_matrix[4][2]
+        fp_4 = conf_matrix[0][3] + conf_matrix[1][3] + conf_matrix[2][3] + conf_matrix[4][3]
+        fp_5 = conf_matrix[0][4] + conf_matrix[1][4] + conf_matrix[2][4] + conf_matrix[3][4]
 
-    def get_precision(dnn_conf_matrix):
-        dnn_tp_1 = dnn_conf_matrix[0][0]
-        dnn_tp_2 = dnn_conf_matrix[1][1]
-        dnn_tp_3 = dnn_conf_matrix[2][2]
-        dnn_tp_4 = dnn_conf_matrix[3][3]
-        dnn_tp_5 = dnn_conf_matrix[4][4]
-        dnn_fp_1 = dnn_conf_matrix[1][0] + dnn_conf_matrix[2][0] + dnn_conf_matrix[3][0] + dnn_conf_matrix[4][0]
-        dnn_fp_2 = dnn_conf_matrix[0][1] + dnn_conf_matrix[2][1] + dnn_conf_matrix[3][1] + dnn_conf_matrix[4][1]
-        dnn_fp_3 = dnn_conf_matrix[0][2] + dnn_conf_matrix[1][2] + dnn_conf_matrix[3][2] + dnn_conf_matrix[4][2]
-        dnn_fp_4 = dnn_conf_matrix[0][3] + dnn_conf_matrix[1][3] + dnn_conf_matrix[2][3] + dnn_conf_matrix[4][3]
-        dnn_fp_5 = dnn_conf_matrix[0][4] + dnn_conf_matrix[1][4] + dnn_conf_matrix[2][4] + dnn_conf_matrix[3][4]
+        if tp_1 + fp_1 == 0:
+            precision_1 = 0
+        else:
+            precision_1 = tp_1 / (tp_1 + fp_1)
+        if tp_2 + fp_2 == 0:
+            precision_2 = 0
+        else:
+            precision_2 = tp_2 / (tp_2 + fp_2)
+        if tp_3 + fp_3 == 0:
+            precision_3 = 0
+        else:
+            precision_3 = tp_3 / (tp_3 + fp_3)
+        if tp_4 + fp_4 == 0:
+            precision_4 = 0
+        else:
+            precision_4 = tp_4 / (tp_4 + fp_4)
+        if tp_5 + fp_5 == 0:
+            precision_5 = 0
+        else:
+            precision_5 = tp_5 / (tp_5 + fp_5)
+        precision_avg = (precision_1 + precision_2 + precision_3 + precision_4 + precision_5) / 5
+        return precision_avg
 
-        if dnn_tp_1 + dnn_fp_1 == 0:
-            dnn_precision_1 = 0
+    def get_recall_pen_1(conf_matrix):
+        tp_1 = conf_matrix[0][0]
+        tp_2 = conf_matrix[1][1]
+        tp_3 = conf_matrix[2][2]
+        tp_4 = conf_matrix[3][3]
+        tp_5 = conf_matrix[4][4]
+        fn_1 = conf_matrix[0][1] + conf_matrix[0][2] + conf_matrix[0][3] + conf_matrix[0][4]
+        fn_2 = conf_matrix[1][0] + conf_matrix[1][2] + conf_matrix[1][3] + conf_matrix[1][4]
+        fn_3 = conf_matrix[2][0] + conf_matrix[2][1] + conf_matrix[2][3] + conf_matrix[2][4]
+        fn_4 = conf_matrix[3][0] + conf_matrix[3][1] + conf_matrix[3][2] + conf_matrix[3][4]
+        fn_5 = conf_matrix[4][0] + conf_matrix[4][1] + conf_matrix[4][2] + conf_matrix[4][3]
+        if tp_1 + fn_1 == 0:
+            recall_1 = 0
         else:
-            dnn_precision_1 = dnn_tp_1 / (dnn_tp_1 + dnn_fp_1)
-        if dnn_tp_2 + dnn_fp_2 == 0:
-            dnn_precision_2 = 0
+            recall_1 = tp_1 / (tp_1 + fn_1)
+        if tp_2 + fn_2 == 0:
+            recall_2 = 0
         else:
-            dnn_precision_2 = dnn_tp_2 / (dnn_tp_2 + dnn_fp_2)
-        if dnn_tp_3 + dnn_fp_3 == 0:
-            dnn_precision_3 = 0
+            recall_2 = tp_2 / (tp_2 + fn_2)
+        if tp_3 + fn_3 == 0:
+            recall_3 = 0
         else:
-            dnn_precision_3 = dnn_tp_3 / (dnn_tp_3 + dnn_fp_3)
-        if dnn_tp_4 + dnn_fp_4 == 0:
-            dnn_precision_4 = 0
+            recall_3 = tp_3 / (tp_3 + fn_3)
+        if tp_4 + fn_4 == 0:
+            recall_4 = 0
         else:
-            dnn_precision_4 = dnn_tp_4 / (dnn_tp_4 + dnn_fp_4)
-        if dnn_tp_5 + dnn_fp_5 == 0:
-            dnn_precision_5 = 0
+            recall_4 = tp_4 / (tp_4 + fn_4)
+        if tp_5 + fn_5 == 0:
+            recall_5 = 0
         else:
-            dnn_precision_5 = dnn_tp_5 / (dnn_tp_5 + dnn_fp_5)
-        dnn_precision_avg = (dnn_precision_1 + dnn_precision_2 + dnn_precision_3 + dnn_precision_4 + dnn_precision_5) / 5
-        print(dnn_precision_3)
-        return dnn_precision_avg
+            recall_5 = tp_5 / (tp_5 +fn_5)
+        recall_avg_pen_1 = (recall_1 + recall_2 + recall_3 +recall_4 + recall_5) / (5+1-1)
+        return recall_avg_pen_1
 
-
-    def get_recall_pen_1(dnn_conf_matrix):
-        dnn_tp_1 = dnn_conf_matrix[0][0]
-        dnn_tp_2 = dnn_conf_matrix[1][1]
-        dnn_tp_3 = dnn_conf_matrix[2][2]
-        dnn_tp_4 = dnn_conf_matrix[3][3]
-        dnn_tp_5 = dnn_conf_matrix[4][4]
-        dnn_fn_1 = dnn_conf_matrix[0][1] + dnn_conf_matrix[0][2] + dnn_conf_matrix[0][3] + dnn_conf_matrix[0][4]
-        dnn_fn_2 = dnn_conf_matrix[1][0] + dnn_conf_matrix[1][2] + dnn_conf_matrix[1][3] + dnn_conf_matrix[1][4]
-        dnn_fn_3 = dnn_conf_matrix[2][0] + dnn_conf_matrix[2][1] + dnn_conf_matrix[2][3] + dnn_conf_matrix[2][4]
-        dnn_fn_4 = dnn_conf_matrix[3][0] + dnn_conf_matrix[3][1] + dnn_conf_matrix[3][2] + dnn_conf_matrix[3][4]
-        dnn_fn_5 = dnn_conf_matrix[4][0] + dnn_conf_matrix[4][1] + dnn_conf_matrix[4][2] + dnn_conf_matrix[4][3]
-        if dnn_tp_1 + dnn_fn_1 == 0:
-            dnn_recall_1 = 0
+    def get_recall_pen_5(conf_matrix):
+        tp_1 = conf_matrix[0][0]
+        tp_2 = conf_matrix[1][1]
+        tp_3 = conf_matrix[2][2]
+        tp_4 = conf_matrix[3][3]
+        tp_5 = conf_matrix[4][4]
+        fn_1 = conf_matrix[0][1] + conf_matrix[0][2] + conf_matrix[0][3] + conf_matrix[0][4]
+        fn_2 = conf_matrix[1][0] + conf_matrix[1][2] + conf_matrix[1][3] + conf_matrix[1][4]
+        fn_3 = conf_matrix[2][0] + conf_matrix[2][1] + conf_matrix[2][3] + conf_matrix[2][4]
+        fn_4 = conf_matrix[3][0] + conf_matrix[3][1] + conf_matrix[3][2] + conf_matrix[3][4]
+        fn_5 = conf_matrix[4][0] + conf_matrix[4][1] + conf_matrix[4][2] + conf_matrix[4][3]
+        if tp_1 + fn_1 == 0:
+            recall_1 = 0
         else:
-            dnn_recall_1 = dnn_tp_1 / (dnn_tp_1 + dnn_fn_1)
-        if dnn_tp_2 + dnn_fn_2 == 0:
-            dnn_recall_2 = 0
+            recall_1 = tp_1 / (tp_1 + fn_1)
+        if tp_2 + fn_2 == 0:
+            recall_2 = 0
         else:
-            dnn_recall_2 = dnn_tp_2 / (dnn_tp_2 + dnn_fn_2)
-        if dnn_tp_3 + dnn_fn_3 == 0:
-            dnn_recall_3 = 0
+            recall_2 = tp_2 / (tp_2 + fn_2)
+        if tp_3 + fn_3 == 0:
+            recall_3 = 0
         else:
-            dnn_recall_3 = dnn_tp_3 / (dnn_tp_3 + dnn_fn_3)
-        if dnn_tp_4 + dnn_fn_4 == 0:
-            dnn_recall_4 = 0
+            recall_3 = tp_3 / (tp_3 + fn_3)
+        if tp_4 + fn_4 == 0:
+            recall_4 = 0
         else:
-            dnn_recall_4 = dnn_tp_4 / (dnn_tp_4 + dnn_fn_4)
-        if dnn_tp_5 + dnn_fn_5 == 0:
-            dnn_recall_5 = 0
+            recall_4 = tp_4 / (tp_4 + fn_4)
+        if tp_5 + fn_5 == 0:
+            recall_5 = 0
         else:
-            dnn_recall_5 = dnn_tp_5 / (dnn_tp_5 +dnn_fn_5)
-        dnn_recall_avg_pen_1 = (dnn_recall_1 + dnn_recall_2 + dnn_recall_3 +dnn_recall_4 + dnn_recall_5) / (5+1-1)
-        return dnn_recall_avg_pen_1
-
-    def get_recall_pen_5(dnn_conf_matrix):
-        dnn_tp_1 = dnn_conf_matrix[0][0]
-        dnn_tp_2 = dnn_conf_matrix[1][1]
-        dnn_tp_3 = dnn_conf_matrix[2][2]
-        dnn_tp_4 = dnn_conf_matrix[3][3]
-        dnn_tp_5 = dnn_conf_matrix[4][4]
-        dnn_fn_1 = dnn_conf_matrix[0][1] + dnn_conf_matrix[0][2] + dnn_conf_matrix[0][3] + dnn_conf_matrix[0][4]
-        dnn_fn_2 = dnn_conf_matrix[1][0] + dnn_conf_matrix[1][2] + dnn_conf_matrix[1][3] + dnn_conf_matrix[1][4]
-        dnn_fn_3 = dnn_conf_matrix[2][0] + dnn_conf_matrix[2][1] + dnn_conf_matrix[2][3] + dnn_conf_matrix[2][4]
-        dnn_fn_4 = dnn_conf_matrix[3][0] + dnn_conf_matrix[3][1] + dnn_conf_matrix[3][2] + dnn_conf_matrix[3][4]
-        dnn_fn_5 = dnn_conf_matrix[4][0] + dnn_conf_matrix[4][1] + dnn_conf_matrix[4][2] + dnn_conf_matrix[4][3]
-        if dnn_tp_1 + dnn_fn_1 == 0:
-            dnn_recall_1 = 0
-        else:
-            dnn_recall_1 = dnn_tp_1 / (dnn_tp_1 + dnn_fn_1)
-        if dnn_tp_2 + dnn_fn_2 == 0:
-            dnn_recall_2 = 0
-        else:
-            dnn_recall_2 = dnn_tp_2 / (dnn_tp_2 + dnn_fn_2)
-        if dnn_tp_3 + dnn_fn_3 == 0:
-            dnn_recall_3 = 0
-        else:
-            dnn_recall_3 = dnn_tp_3 / (dnn_tp_3 + dnn_fn_3)
-        if dnn_tp_4 + dnn_fn_4 == 0:
-            dnn_recall_4 = 0
-        else:
-            dnn_recall_4 = dnn_tp_4 / (dnn_tp_4 + dnn_fn_4)
-        if dnn_tp_5 + dnn_fn_5 == 0:
-            dnn_recall_5 = 0
-        else:
-            dnn_recall_5 = dnn_tp_5 / (dnn_tp_5 +dnn_fn_5)
-        dnn_recall_avg_pen_5 = (dnn_recall_1 + dnn_recall_2 + (5*dnn_recall_3) +dnn_recall_4 + dnn_recall_5) / (5+5-1)
-        return dnn_recall_avg_pen_5
+            recall_5 = tp_5 / (tp_5 +fn_5)
+        recall_avg_pen_5 = (recall_1 + recall_2 + (5*recall_3) +recall_4 + recall_5) / (5+5-1)
+        return recall_avg_pen_5
 
     dnn_conf_matrix = confusion_matrix(y_test, dnn_prediction)
 
@@ -779,110 +773,6 @@ for train_index, test_index in kf.split(X_dummy):
                                                     lr_pred_prob_QA[i][lr_QA_index]):
             lr_prediction.loc[i] = "Queued/Awaiting Assignment"
 
-
-    def get_precision(lr_conf_matrix):
-        lr_tp_1 = lr_conf_matrix[0][0]
-        lr_tp_2 = lr_conf_matrix[1][1]
-        lr_tp_3 = lr_conf_matrix[2][2]
-        lr_tp_4 = lr_conf_matrix[3][3]
-        lr_tp_5 = lr_conf_matrix[4][4]
-        lr_fp_1 = lr_conf_matrix[1][0] + lr_conf_matrix[2][0] + lr_conf_matrix[3][0] + lr_conf_matrix[4][0]
-        lr_fp_2 = lr_conf_matrix[0][1] + lr_conf_matrix[2][1] + lr_conf_matrix[3][1] + lr_conf_matrix[4][1]
-        lr_fp_3 = lr_conf_matrix[0][2] + lr_conf_matrix[1][2] + lr_conf_matrix[3][2] + lr_conf_matrix[4][2]
-        lr_fp_4 = lr_conf_matrix[0][3] + lr_conf_matrix[1][3] + lr_conf_matrix[2][3] + lr_conf_matrix[4][3]
-        lr_fp_5 = lr_conf_matrix[0][4] + lr_conf_matrix[1][4] + lr_conf_matrix[2][4] + lr_conf_matrix[3][4]
-
-        if lr_tp_1 + lr_fp_1 == 0:
-            lr_precision_1 = 0
-        else:
-            lr_precision_1 = lr_tp_1 / (lr_tp_1 + lr_fp_1)
-        if lr_tp_2 + lr_fp_2 == 0:
-            lr_precision_2 = 0
-        else:
-            lr_precision_2 = lr_tp_2 / (lr_tp_2 + lr_fp_2)
-        if lr_tp_3 + lr_fp_3 == 0:
-            lr_precision_3 = 0
-        else:
-            lr_precision_3 = lr_tp_3 / (lr_tp_3 + lr_fp_3)
-        if lr_tp_4 + lr_fp_4 == 0:
-            lr_precision_4 = 0
-        else:
-            lr_precision_4 = lr_tp_4 / (lr_tp_4 + lr_fp_4)
-        if lr_tp_5 + lr_fp_5 == 0:
-            lr_precision_5 = 0
-        else:
-            lr_precision_5 = lr_tp_5 / (lr_tp_5 + lr_fp_5)
-        lr_precision_avg = (lr_precision_1 + lr_precision_2 + lr_precision_3 + lr_precision_4 + lr_precision_5) / 5
-        return lr_precision_avg
-
-    def get_recall_pen_1(lr_conf_matrix):
-        lr_tp_1 = lr_conf_matrix[0][0]
-        lr_tp_2 = lr_conf_matrix[1][1]
-        lr_tp_3 = lr_conf_matrix[2][2]
-        lr_tp_4 = lr_conf_matrix[3][3]
-        lr_tp_5 = lr_conf_matrix[4][4]
-        lr_fn_1 = lr_conf_matrix[0][1] + lr_conf_matrix[0][2] + lr_conf_matrix[0][3] + lr_conf_matrix[0][4]
-        lr_fn_2 = lr_conf_matrix[1][0] + lr_conf_matrix[1][2] + lr_conf_matrix[1][3] + lr_conf_matrix[1][4]
-        lr_fn_3 = lr_conf_matrix[2][0] + lr_conf_matrix[2][1] + lr_conf_matrix[2][3] + lr_conf_matrix[2][4]
-        lr_fn_4 = lr_conf_matrix[3][0] + lr_conf_matrix[3][1] + lr_conf_matrix[3][2] + lr_conf_matrix[3][4]
-        lr_fn_5 = lr_conf_matrix[4][0] + lr_conf_matrix[4][1] + lr_conf_matrix[4][2] + lr_conf_matrix[4][3]
-        if lr_tp_1 + lr_fn_1 == 0:
-            lr_recall_1 = 0
-        else:
-            lr_recall_1 = lr_tp_1 / (lr_tp_1 + lr_fn_1)
-        if lr_tp_2 + lr_fn_2 == 0:
-            lr_recall_2 = 0
-        else:
-            lr_recall_2 = lr_tp_2 / (lr_tp_2 + lr_fn_2)
-        if lr_tp_3 + lr_fn_3 == 0:
-            lr_recall_3 = 0
-        else:
-            lr_recall_3 = lr_tp_3 / (lr_tp_3 + lr_fn_3)
-        if lr_tp_4 + lr_fn_4 == 0:
-            lr_recall_4 = 0
-        else:
-            lr_recall_4 = lr_tp_4 / (lr_tp_4 + lr_fn_4)
-        if lr_tp_5 + lr_fn_5 == 0:
-            lr_recall_5 = 0
-        else:
-            lr_recall_5 = lr_tp_5 / (lr_tp_5 +lr_fn_5)
-        lr_recall_avg_pen_1 = (lr_recall_1 + lr_recall_2 + lr_recall_3 +lr_recall_4 + lr_recall_5) / (5+1-1)
-        return lr_recall_avg_pen_1
-
-    def get_recall_pen_5(lr_conf_matrix):
-        lr_tp_1 = lr_conf_matrix[0][0]
-        lr_tp_2 = lr_conf_matrix[1][1]
-        lr_tp_3 = lr_conf_matrix[2][2]
-        lr_tp_4 = lr_conf_matrix[3][3]
-        lr_tp_5 = lr_conf_matrix[4][4]
-        lr_fn_1 = lr_conf_matrix[0][1] + lr_conf_matrix[0][2] + lr_conf_matrix[0][3] + lr_conf_matrix[0][4]
-        lr_fn_2 = lr_conf_matrix[1][0] + lr_conf_matrix[1][2] + lr_conf_matrix[1][3] + lr_conf_matrix[1][4]
-        lr_fn_3 = lr_conf_matrix[2][0] + lr_conf_matrix[2][1] + lr_conf_matrix[2][3] + lr_conf_matrix[2][4]
-        lr_fn_4 = lr_conf_matrix[3][0] + lr_conf_matrix[3][1] + lr_conf_matrix[3][2] + lr_conf_matrix[3][4]
-        lr_fn_5 = lr_conf_matrix[4][0] + lr_conf_matrix[4][1] + lr_conf_matrix[4][2] + lr_conf_matrix[4][3]
-        if lr_tp_1 + lr_fn_1 == 0:
-            lr_recall_1 = 0
-        else:
-            lr_recall_1 = lr_tp_1 / (lr_tp_1 + lr_fn_1)
-        if lr_tp_2 + lr_fn_2 == 0:
-            lr_recall_2 = 0
-        else:
-            lr_recall_2 = lr_tp_2 / (lr_tp_2 + lr_fn_2)
-        if lr_tp_3 + lr_fn_3 == 0:
-            lr_recall_3 = 0
-        else:
-            lr_recall_3 = lr_tp_3 / (lr_tp_3 + lr_fn_3)
-        if lr_tp_4 + lr_fn_4 == 0:
-            lr_recall_4 = 0
-        else:
-            lr_recall_4 = lr_tp_4 / (lr_tp_4 + lr_fn_4)
-        if lr_tp_5 + lr_fn_5 == 0:
-            lr_recall_5 = 0
-        else:
-            lr_recall_5 = lr_tp_5 / (lr_tp_5 +lr_fn_5)
-        lr_recall_avg_pen_5 = (lr_recall_1 + lr_recall_2 + (5*lr_recall_3) +lr_recall_4 + lr_recall_5) / (5+5-1)
-        return lr_recall_avg_pen_5
-
     lr_conf_matrix = confusion_matrix(y_test, lr_prediction)
 
     print("lr_confusion matrix:")
@@ -990,110 +880,6 @@ for train_index, test_index in kf.split(X_dummy):
                                                       nb_pred_prob_AW[i][nb_AW_index], nb_pred_prob_CC[i][nb_CC_index],
                                                       nb_pred_prob_QA[i][nb_QA_index]):
             nb_prediction.loc[i] = "Queued/Awaiting Assignment"
-
-
-    def get_precision(nb_conf_matrix):
-        nb_tp_1 = nb_conf_matrix[0][0]
-        nb_tp_2 = nb_conf_matrix[1][1]
-        nb_tp_3 = nb_conf_matrix[2][2]
-        nb_tp_4 = nb_conf_matrix[3][3]
-        nb_tp_5 = nb_conf_matrix[4][4]
-        nb_fp_1 = nb_conf_matrix[1][0] + nb_conf_matrix[2][0] + nb_conf_matrix[3][0] + nb_conf_matrix[4][0]
-        nb_fp_2 = nb_conf_matrix[0][1] + nb_conf_matrix[2][1] + nb_conf_matrix[3][1] + nb_conf_matrix[4][1]
-        nb_fp_3 = nb_conf_matrix[0][2] + nb_conf_matrix[1][2] + nb_conf_matrix[3][2] + nb_conf_matrix[4][2]
-        nb_fp_4 = nb_conf_matrix[0][3] + nb_conf_matrix[1][3] + nb_conf_matrix[2][3] + nb_conf_matrix[4][3]
-        nb_fp_5 = nb_conf_matrix[0][4] + nb_conf_matrix[1][4] + nb_conf_matrix[2][4] + nb_conf_matrix[3][4]
-
-        if nb_tp_1 + nb_fp_1 == 0:
-            nb_precision_1 = 0
-        else:
-            nb_precision_1 = nb_tp_1 / (nb_tp_1 + nb_fp_1)
-        if nb_tp_2 + nb_fp_2 == 0:
-            nb_precision_2 = 0
-        else:
-            nb_precision_2 = nb_tp_2 / (nb_tp_2 + nb_fp_2)
-        if nb_tp_3 + nb_fp_3 == 0:
-            nb_precision_3 = 0
-        else:
-            nb_precision_3 = nb_tp_3 / (nb_tp_3 + nb_fp_3)
-        if nb_tp_4 + nb_fp_4 == 0:
-            nb_precision_4 = 0
-        else:
-            nb_precision_4 = nb_tp_4 / (nb_tp_4 + nb_fp_4)
-        if nb_tp_5 + nb_fp_5 == 0:
-            nb_precision_5 = 0
-        else:
-            nb_precision_5 = nb_tp_5 / (nb_tp_5 + nb_fp_5)
-        nb_precision_avg = (nb_precision_1 + nb_precision_2 + nb_precision_3 + nb_precision_4 + nb_precision_5) / 5
-        return nb_precision_avg
-
-    def get_recall_pen_1(nb_conf_matrix):
-        nb_tp_1 = nb_conf_matrix[0][0]
-        nb_tp_2 = nb_conf_matrix[1][1]
-        nb_tp_3 = nb_conf_matrix[2][2]
-        nb_tp_4 = nb_conf_matrix[3][3]
-        nb_tp_5 = nb_conf_matrix[4][4]
-        nb_fn_1 = nb_conf_matrix[0][1] + nb_conf_matrix[0][2] + nb_conf_matrix[0][3] + nb_conf_matrix[0][4]
-        nb_fn_2 = nb_conf_matrix[1][0] + nb_conf_matrix[1][2] + nb_conf_matrix[1][3] + nb_conf_matrix[1][4]
-        nb_fn_3 = nb_conf_matrix[2][0] + nb_conf_matrix[2][1] + nb_conf_matrix[2][3] + nb_conf_matrix[2][4]
-        nb_fn_4 = nb_conf_matrix[3][0] + nb_conf_matrix[3][1] + nb_conf_matrix[3][2] + nb_conf_matrix[3][4]
-        nb_fn_5 = nb_conf_matrix[4][0] + nb_conf_matrix[4][1] + nb_conf_matrix[4][2] + nb_conf_matrix[4][3]
-        if nb_tp_1 + nb_fn_1 == 0:
-            nb_recall_1 = 0
-        else:
-            nb_recall_1 = nb_tp_1 / (nb_tp_1 + nb_fn_1)
-        if nb_tp_2 + nb_fn_2 == 0:
-            nb_recall_2 = 0
-        else:
-            nb_recall_2 = nb_tp_2 / (nb_tp_2 + nb_fn_2)
-        if nb_tp_3 + nb_fn_3 == 0:
-            nb_recall_3 = 0
-        else:
-            nb_recall_3 = nb_tp_3 / (nb_tp_3 + nb_fn_3)
-        if nb_tp_4 + nb_fn_4 == 0:
-            nb_recall_4 = 0
-        else:
-            nb_recall_4 = nb_tp_4 / (nb_tp_4 + nb_fn_4)
-        if nb_tp_5 + nb_fn_5 == 0:
-            nb_recall_5 = 0
-        else:
-            nb_recall_5 = nb_tp_5 / (nb_tp_5 +nb_fn_5)
-        nb_recall_avg_pen_1 = (nb_recall_1 + nb_recall_2 + nb_recall_3 +nb_recall_4 + nb_recall_5) / (5+1-1)
-        return nb_recall_avg_pen_1
-
-    def get_recall_pen_5(nb_conf_matrix):
-        nb_tp_1 = nb_conf_matrix[0][0]
-        nb_tp_2 = nb_conf_matrix[1][1]
-        nb_tp_3 = nb_conf_matrix[2][2]
-        nb_tp_4 = nb_conf_matrix[3][3]
-        nb_tp_5 = nb_conf_matrix[4][4]
-        nb_fn_1 = nb_conf_matrix[0][1] + nb_conf_matrix[0][2] + nb_conf_matrix[0][3] + nb_conf_matrix[0][4]
-        nb_fn_2 = nb_conf_matrix[1][0] + nb_conf_matrix[1][2] + nb_conf_matrix[1][3] + nb_conf_matrix[1][4]
-        nb_fn_3 = nb_conf_matrix[2][0] + nb_conf_matrix[2][1] + nb_conf_matrix[2][3] + nb_conf_matrix[2][4]
-        nb_fn_4 = nb_conf_matrix[3][0] + nb_conf_matrix[3][1] + nb_conf_matrix[3][2] + nb_conf_matrix[3][4]
-        nb_fn_5 = nb_conf_matrix[4][0] + nb_conf_matrix[4][1] + nb_conf_matrix[4][2] + nb_conf_matrix[4][3]
-        if nb_tp_1 + nb_fn_1 == 0:
-            nb_recall_1 = 0
-        else:
-            nb_recall_1 = nb_tp_1 / (nb_tp_1 + nb_fn_1)
-        if nb_tp_2 + nb_fn_2 == 0:
-            nb_recall_2 = 0
-        else:
-            nb_recall_2 = nb_tp_2 / (nb_tp_2 + nb_fn_2)
-        if nb_tp_3 + nb_fn_3 == 0:
-            nb_recall_3 = 0
-        else:
-            nb_recall_3 = nb_tp_3 / (nb_tp_3 + nb_fn_3)
-        if nb_tp_4 + nb_fn_4 == 0:
-            nb_recall_4 = 0
-        else:
-            nb_recall_4 = nb_tp_4 / (nb_tp_4 + nb_fn_4)
-        if nb_tp_5 + nb_fn_5 == 0:
-            nb_recall_5 = 0
-        else:
-            nb_recall_5 = nb_tp_5 / (nb_tp_5 +nb_fn_5)
-        nb_recall_avg_pen_5 = (nb_recall_1 + nb_recall_2 + (5*nb_recall_3) +nb_recall_4 + nb_recall_5) / (5+5-1)
-        return nb_recall_avg_pen_5
 
     nb_conf_matrix = confusion_matrix(y_test, nb_prediction)
 
@@ -1203,110 +989,6 @@ for train_index, test_index in kf.split(X_dummy):
                                                       rf_pred_prob_QA[i][rf_QA_index]):
             rf_prediction.loc[i] = "Queued/Awaiting Assignment"
 
-
-    def get_precision(rf_conf_matrix):
-        rf_tp_1 = rf_conf_matrix[0][0]
-        rf_tp_2 = rf_conf_matrix[1][1]
-        rf_tp_3 = rf_conf_matrix[2][2]
-        rf_tp_4 = rf_conf_matrix[3][3]
-        rf_tp_5 = rf_conf_matrix[4][4]
-        rf_fp_1 = rf_conf_matrix[1][0] + rf_conf_matrix[2][0] + rf_conf_matrix[3][0] + rf_conf_matrix[4][0]
-        rf_fp_2 = rf_conf_matrix[0][1] + rf_conf_matrix[2][1] + rf_conf_matrix[3][1] + rf_conf_matrix[4][1]
-        rf_fp_3 = rf_conf_matrix[0][2] + rf_conf_matrix[1][2] + rf_conf_matrix[3][2] + rf_conf_matrix[4][2]
-        rf_fp_4 = rf_conf_matrix[0][3] + rf_conf_matrix[1][3] + rf_conf_matrix[2][3] + rf_conf_matrix[4][3]
-        rf_fp_5 = rf_conf_matrix[0][4] + rf_conf_matrix[1][4] + rf_conf_matrix[2][4] + rf_conf_matrix[3][4]
-
-        if rf_tp_1 + rf_fp_1 == 0:
-            rf_precision_1 = 0
-        else:
-            rf_precision_1 = rf_tp_1 / (rf_tp_1 + rf_fp_1)
-        if rf_tp_2 + rf_fp_2 == 0:
-            rf_precision_2 = 0
-        else:
-            rf_precision_2 = rf_tp_2 / (rf_tp_2 + rf_fp_2)
-        if rf_tp_3 + rf_fp_3 == 0:
-            rf_precision_3 = 0
-        else:
-            rf_precision_3 = rf_tp_3 / (rf_tp_3 + rf_fp_3)
-        if rf_tp_4 + rf_fp_4 == 0:
-            rf_precision_4 = 0
-        else:
-            rf_precision_4 = rf_tp_4 / (rf_tp_4 + rf_fp_4)
-        if rf_tp_5 + rf_fp_5 == 0:
-            rf_precision_5 = 0
-        else:
-            rf_precision_5 = rf_tp_5 / (rf_tp_5 + rf_fp_5)
-        rf_precision_avg = (rf_precision_1 + rf_precision_2 + rf_precision_3 + rf_precision_4 + rf_precision_5) / 5
-        return rf_precision_avg
-
-    def get_recall_pen_1(rf_conf_matrix):
-        rf_tp_1 = rf_conf_matrix[0][0]
-        rf_tp_2 = rf_conf_matrix[1][1]
-        rf_tp_3 = rf_conf_matrix[2][2]
-        rf_tp_4 = rf_conf_matrix[3][3]
-        rf_tp_5 = rf_conf_matrix[4][4]
-        rf_fn_1 = rf_conf_matrix[0][1] + rf_conf_matrix[0][2] + rf_conf_matrix[0][3] + rf_conf_matrix[0][4]
-        rf_fn_2 = rf_conf_matrix[1][0] + rf_conf_matrix[1][2] + rf_conf_matrix[1][3] + rf_conf_matrix[1][4]
-        rf_fn_3 = rf_conf_matrix[2][0] + rf_conf_matrix[2][1] + rf_conf_matrix[2][3] + rf_conf_matrix[2][4]
-        rf_fn_4 = rf_conf_matrix[3][0] + rf_conf_matrix[3][1] + rf_conf_matrix[3][2] + rf_conf_matrix[3][4]
-        rf_fn_5 = rf_conf_matrix[4][0] + rf_conf_matrix[4][1] + rf_conf_matrix[4][2] + rf_conf_matrix[4][3]
-        if rf_tp_1 + rf_fn_1 == 0:
-            rf_recall_1 = 0
-        else:
-            rf_recall_1 = rf_tp_1 / (rf_tp_1 + rf_fn_1)
-        if rf_tp_2 + rf_fn_2 == 0:
-            rf_recall_2 = 0
-        else:
-            rf_recall_2 = rf_tp_2 / (rf_tp_2 + rf_fn_2)
-        if rf_tp_3 + rf_fn_3 == 0:
-            rf_recall_3 = 0
-        else:
-            rf_recall_3 = rf_tp_3 / (rf_tp_3 + rf_fn_3)
-        if rf_tp_4 + rf_fn_4 == 0:
-            rf_recall_4 = 0
-        else:
-            rf_recall_4 = rf_tp_4 / (rf_tp_4 + rf_fn_4)
-        if rf_tp_5 + rf_fn_5 == 0:
-            rf_recall_5 = 0
-        else:
-            rf_recall_5 = rf_tp_5 / (rf_tp_5 +rf_fn_5)
-        rf_recall_avg_pen_1 = (rf_recall_1 + rf_recall_2 + rf_recall_3 +rf_recall_4 + rf_recall_5) / (5+1-1)
-        return rf_recall_avg_pen_1
-
-    def get_recall_pen_5(rf_conf_matrix):
-        rf_tp_1 = rf_conf_matrix[0][0]
-        rf_tp_2 = rf_conf_matrix[1][1]
-        rf_tp_3 = rf_conf_matrix[2][2]
-        rf_tp_4 = rf_conf_matrix[3][3]
-        rf_tp_5 = rf_conf_matrix[4][4]
-        rf_fn_1 = rf_conf_matrix[0][1] + rf_conf_matrix[0][2] + rf_conf_matrix[0][3] + rf_conf_matrix[0][4]
-        rf_fn_2 = rf_conf_matrix[1][0] + rf_conf_matrix[1][2] + rf_conf_matrix[1][3] + rf_conf_matrix[1][4]
-        rf_fn_3 = rf_conf_matrix[2][0] + rf_conf_matrix[2][1] + rf_conf_matrix[2][3] + rf_conf_matrix[2][4]
-        rf_fn_4 = rf_conf_matrix[3][0] + rf_conf_matrix[3][1] + rf_conf_matrix[3][2] + rf_conf_matrix[3][4]
-        rf_fn_5 = rf_conf_matrix[4][0] + rf_conf_matrix[4][1] + rf_conf_matrix[4][2] + rf_conf_matrix[4][3]
-        if rf_tp_1 + rf_fn_1 == 0:
-            rf_recall_1 = 0
-        else:
-            rf_recall_1 = rf_tp_1 / (rf_tp_1 + rf_fn_1)
-        if rf_tp_2 + rf_fn_2 == 0:
-            rf_recall_2 = 0
-        else:
-            rf_recall_2 = rf_tp_2 / (rf_tp_2 + rf_fn_2)
-        if rf_tp_3 + rf_fn_3 == 0:
-            rf_recall_3 = 0
-        else:
-            rf_recall_3 = rf_tp_3 / (rf_tp_3 + rf_fn_3)
-        if rf_tp_4 + rf_fn_4 == 0:
-            rf_recall_4 = 0
-        else:
-            rf_recall_4 = rf_tp_4 / (rf_tp_4 + rf_fn_4)
-        if rf_tp_5 + rf_fn_5 == 0:
-            rf_recall_5 = 0
-        else:
-            rf_recall_5 = rf_tp_5 / (rf_tp_5 +rf_fn_5)
-        rf_recall_avg_pen_5 = (rf_recall_1 + rf_recall_2 + (5*rf_recall_3) +rf_recall_4 + rf_recall_5) / (5+5-1)
-        return rf_recall_avg_pen_5
-
     rf_conf_matrix = confusion_matrix(y_test, rf_prediction)
 
     print("rf_confusion matrix:")
@@ -1414,110 +1096,6 @@ for train_index, test_index in kf.split(X_dummy):
                                                       svm_pred_prob_AW[i][svm_AW_index], svm_pred_prob_CC[i][svm_CC_index],
                                                       svm_pred_prob_QA[i][svm_QA_index]):
             svm_prediction.loc[i] = "Queued/Awaiting Assignment"
-
-
-    def get_precision(svm_conf_matrix):
-        svm_tp_1 = svm_conf_matrix[0][0]
-        svm_tp_2 = svm_conf_matrix[1][1]
-        svm_tp_3 = svm_conf_matrix[2][2]
-        svm_tp_4 = svm_conf_matrix[3][3]
-        svm_tp_5 = svm_conf_matrix[4][4]
-        svm_fp_1 = svm_conf_matrix[1][0] + svm_conf_matrix[2][0] + svm_conf_matrix[3][0] + svm_conf_matrix[4][0]
-        svm_fp_2 = svm_conf_matrix[0][1] + svm_conf_matrix[2][1] + svm_conf_matrix[3][1] + svm_conf_matrix[4][1]
-        svm_fp_3 = svm_conf_matrix[0][2] + svm_conf_matrix[1][2] + svm_conf_matrix[3][2] + svm_conf_matrix[4][2]
-        svm_fp_4 = svm_conf_matrix[0][3] + svm_conf_matrix[1][3] + svm_conf_matrix[2][3] + svm_conf_matrix[4][3]
-        svm_fp_5 = svm_conf_matrix[0][4] + svm_conf_matrix[1][4] + svm_conf_matrix[2][4] + svm_conf_matrix[3][4]
-
-        if svm_tp_1 + svm_fp_1 == 0:
-            svm_precision_1 = 0
-        else:
-            svm_precision_1 = svm_tp_1 / (svm_tp_1 + svm_fp_1)
-        if svm_tp_2 + svm_fp_2 == 0:
-            svm_precision_2 = 0
-        else:
-            svm_precision_2 = svm_tp_2 / (svm_tp_2 + svm_fp_2)
-        if svm_tp_3 + svm_fp_3 == 0:
-            svm_precision_3 = 0
-        else:
-            svm_precision_3 = svm_tp_3 / (svm_tp_3 + svm_fp_3)
-        if svm_tp_4 + svm_fp_4 == 0:
-            svm_precision_4 = 0
-        else:
-            svm_precision_4 = svm_tp_4 / (svm_tp_4 + svm_fp_4)
-        if svm_tp_5 + svm_fp_5 == 0:
-            svm_precision_5 = 0
-        else:
-            svm_precision_5 = svm_tp_5 / (svm_tp_5 + svm_fp_5)
-        svm_precision_avg = (svm_precision_1 + svm_precision_2 + svm_precision_3 + svm_precision_4 + svm_precision_5) / 5
-        return svm_precision_avg
-
-    def get_recall_pen_1(svm_conf_matrix):
-        svm_tp_1 = svm_conf_matrix[0][0]
-        svm_tp_2 = svm_conf_matrix[1][1]
-        svm_tp_3 = svm_conf_matrix[2][2]
-        svm_tp_4 = svm_conf_matrix[3][3]
-        svm_tp_5 = svm_conf_matrix[4][4]
-        svm_fn_1 = svm_conf_matrix[0][1] + svm_conf_matrix[0][2] + svm_conf_matrix[0][3] + svm_conf_matrix[0][4]
-        svm_fn_2 = svm_conf_matrix[1][0] + svm_conf_matrix[1][2] + svm_conf_matrix[1][3] + svm_conf_matrix[1][4]
-        svm_fn_3 = svm_conf_matrix[2][0] + svm_conf_matrix[2][1] + svm_conf_matrix[2][3] + svm_conf_matrix[2][4]
-        svm_fn_4 = svm_conf_matrix[3][0] + svm_conf_matrix[3][1] + svm_conf_matrix[3][2] + svm_conf_matrix[3][4]
-        svm_fn_5 = svm_conf_matrix[4][0] + svm_conf_matrix[4][1] + svm_conf_matrix[4][2] + svm_conf_matrix[4][3]
-        if svm_tp_1 + svm_fn_1 == 0:
-            svm_recall_1 = 0
-        else:
-            svm_recall_1 = svm_tp_1 / (svm_tp_1 + svm_fn_1)
-        if svm_tp_2 + svm_fn_2 == 0:
-            svm_recall_2 = 0
-        else:
-            svm_recall_2 = svm_tp_2 / (svm_tp_2 + svm_fn_2)
-        if svm_tp_3 + svm_fn_3 == 0:
-            svm_recall_3 = 0
-        else:
-            svm_recall_3 = svm_tp_3 / (svm_tp_3 + svm_fn_3)
-        if svm_tp_4 + svm_fn_4 == 0:
-            svm_recall_4 = 0
-        else:
-            svm_recall_4 = svm_tp_4 / (svm_tp_4 + svm_fn_4)
-        if svm_tp_5 + svm_fn_5 == 0:
-            svm_recall_5 = 0
-        else:
-            svm_recall_5 = svm_tp_5 / (svm_tp_5 +svm_fn_5)
-        svm_recall_avg_pen_1 = (svm_recall_1 + svm_recall_2 + svm_recall_3 +svm_recall_4 + svm_recall_5) / (5+1-1)
-        return svm_recall_avg_pen_1
-
-    def get_recall_pen_5(svm_conf_matrix):
-        svm_tp_1 = svm_conf_matrix[0][0]
-        svm_tp_2 = svm_conf_matrix[1][1]
-        svm_tp_3 = svm_conf_matrix[2][2]
-        svm_tp_4 = svm_conf_matrix[3][3]
-        svm_tp_5 = svm_conf_matrix[4][4]
-        svm_fn_1 = svm_conf_matrix[0][1] + svm_conf_matrix[0][2] + svm_conf_matrix[0][3] + svm_conf_matrix[0][4]
-        svm_fn_2 = svm_conf_matrix[1][0] + svm_conf_matrix[1][2] + svm_conf_matrix[1][3] + svm_conf_matrix[1][4]
-        svm_fn_3 = svm_conf_matrix[2][0] + svm_conf_matrix[2][1] + svm_conf_matrix[2][3] + svm_conf_matrix[2][4]
-        svm_fn_4 = svm_conf_matrix[3][0] + svm_conf_matrix[3][1] + svm_conf_matrix[3][2] + svm_conf_matrix[3][4]
-        svm_fn_5 = svm_conf_matrix[4][0] + svm_conf_matrix[4][1] + svm_conf_matrix[4][2] + svm_conf_matrix[4][3]
-        if svm_tp_1 + svm_fn_1 == 0:
-            svm_recall_1 = 0
-        else:
-            svm_recall_1 = svm_tp_1 / (svm_tp_1 + svm_fn_1)
-        if svm_tp_2 + svm_fn_2 == 0:
-            svm_recall_2 = 0
-        else:
-            svm_recall_2 = svm_tp_2 / (svm_tp_2 + svm_fn_2)
-        if svm_tp_3 + svm_fn_3 == 0:
-            svm_recall_3 = 0
-        else:
-            svm_recall_3 = svm_tp_3 / (svm_tp_3 + svm_fn_3)
-        if svm_tp_4 + svm_fn_4 == 0:
-            svm_recall_4 = 0
-        else:
-            svm_recall_4 = svm_tp_4 / (svm_tp_4 + svm_fn_4)
-        if svm_tp_5 + svm_fn_5 == 0:
-            svm_recall_5 = 0
-        else:
-            svm_recall_5 = svm_tp_5 / (svm_tp_5 +svm_fn_5)
-        svm_recall_avg_pen_5 = (svm_recall_1 + svm_recall_2 + (5*svm_recall_3) +svm_recall_4 + svm_recall_5) / (5+5-1)
-        return svm_recall_avg_pen_5
 
     svm_conf_matrix = confusion_matrix(y_test, svm_prediction)
 
