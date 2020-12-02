@@ -17,7 +17,7 @@ import sys
 from sys import argv
 import six
 sys.modules['sklearn.externals.six'] = six
-from resampling.resampler import resampling_assigner
+from resampling.resampler_production import resampling_assigner
 from imblearn.metrics import geometric_mean_score
 from collections import Counter
 
